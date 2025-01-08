@@ -67,6 +67,7 @@ unsigned long temperatureCheck = 0;
 const long temperatureCheckInterval = 950;
 
 unsigned long buzzerMillis;
+unsigned long startBuzzerMillis;
 
 void setup() 
 {
@@ -92,24 +93,35 @@ void loop()
 {
   // Acionamento das funções globais
   initialResetFunc();
-  if (millis() - temperatureCheck >= temperatureCheckInterval)
-  {
-    temperatureCheck = millis();
-    showTemperature();
-  }
-  verifyTemperatureStart();
-  verifyLevel();
-  readPowerFunc();
-  readTime();
   validation();
-  dataToDisplay();
+  if (Buffer[0] == 0x5A && Buffer[4] == 0x16) {
+    showPower();
+    turnOn();
+    screenReset();
+    // Bip de aviso:
+    mySerial.write(buzzerHalfSecond, 8);
+    delay(1000);
+    mySerial.write(buzzerHalfSecond, 8);
+    delay(1000);
+    mySerial.write(buzzerOneSecond, 8);
+  }
+  else {
+    if (millis() - temperatureCheck >= temperatureCheckInterval)
+    {
+      temperatureCheck = millis();
+      showTemperature();
+    }
+    verifyTemperatureStart();
+    verifyLevel();
+    readPowerFunc();
+    readTime();
+  }
 }
 
 void readCurrent()
 {
   // Faz a leitura do valor da corrente
   currentValue = analogRead(currentPin);
-  Serial.println(currentValue);
 }
 
 void verifyCurrent() 
@@ -117,19 +129,22 @@ void verifyCurrent()
   // Verificação da corrente
   if (currentValue > 736) {
     // Corrente elevada
+    startBuzzerMillis = millis();
     buzzerMillis = 0;
-    buzzerMillis = millis();
-
+    Serial.println(currentValue);
     changePic[8] = 0x00;
     changePic[9] = 0x09;
     mySerial.write(changePic, 10);
     total = -1;
     screenReset();
-    delay(10000);
 
-    while (buzzerMillis > 10000) {
-      mySerial.write(buzzerHalfSecond, 8);
-      delay(1000);
+    while (currentValue > 736) {
+      while (buzzerMillis < 10000) {
+        buzzerMillis = millis() - startBuzzerMillis;
+        mySerial.write(buzzerHalfSecond, 8);
+        delay(1000);
+      }
+      readCurrent();
     }
     resetPopup();
   }
@@ -156,6 +171,8 @@ void verifyTemperature()
   // Verifica o nível da temperatura para não passar do limite desejado
   if (temperature >= 45)
   {
+    startBuzzerMillis = millis();
+    buzzerMillis = 0;
     changePic[8] = 0x00; 
     changePic[9] = 0x07;
     mySerial.write(changePic, 10);
@@ -164,13 +181,14 @@ void verifyTemperature()
     
     while (temperature >= 30)
     {
+      buzzerMillis = millis() - startBuzzerMillis;
+      if (buzzerMillis < 10000) {
+        mySerial.write(buzzerHalfSecond, 8);
+        delay(1000);
+      }
       showTemperature();
-      mySerial.write(buzzerHalfSecond, 8);
-      delay(1000);
-      Serial.println(temperature);
     }
     resetPopup();
-    screenReset();
   }
 }
 
@@ -180,14 +198,22 @@ void verifyTemperatureStart()
   if (temperature >= 30)
   {
     // Iniciando com uma temperature elevada
+    startBuzzerMillis = millis();
+    buzzerMillis = 0;
     changePic[8] = 0x00; 
     changePic[9] = 0x07;
     mySerial.write(changePic, 10);
+    Serial.println(buzzerMillis);
+    Serial.println("-----");
 
     while (temperature >= 30)
     {
-      mySerial.write(buzzerHalfSecond, 8);
-      delay(1000);
+      buzzerMillis = millis() - startBuzzerMillis;
+      if (buzzerMillis < 10000) {
+        mySerial.write(buzzerHalfSecond, 8);
+        Serial.println(buzzerMillis);
+        delay(1000);
+      }
       showTemperature();
     }
     resetPopup();
@@ -218,10 +244,7 @@ void readPowerFunc()
 void showPower()
 {
   // Aquisição dos dados de potência
-  Serial.println(pwmValue);
   analogWrite(pwmPin, pwmValue);
-  Serial.println("------");
-  Serial.println(pwmValue);
   
   setPower(250);
 
@@ -297,34 +320,7 @@ void validation()
       Buffer[j] = mySerial.read();
     }
   }
-}
-
-void dataToDisplay()
-{
-  // Acionamento de funções com base no botão selecionado
-  if (Buffer[0] == 0x5A)
-  {
-    switch (Buffer[4])
-    {
-      case 0x16:         
-        Serial.println("Ligar!");
-        showPower();
-        turnOn();
-        screenReset();
-        // Bip de aviso:
-        mySerial.write(buzzerHalfSecond, 8);
-        delay(1000);
-        mySerial.write(buzzerHalfSecond, 8);
-        delay(1000);
-        mySerial.write(buzzerOneSecond, 8);
-        break;
-
-      case 0x18:
-        Serial.println("Desligar!");
-        turnOff();
-        break;
-    }
-  }
+  delay(50);
 }
 
 void turnOn()
