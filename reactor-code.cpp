@@ -22,7 +22,7 @@ double powerReadValue;
 double pwmValue = 0;
 
 // Variáveis de controle
-int pgmTime = 10;
+int pgmTime;
 int temperature = 27; 
 double pgmtimeReadValue;
 int pinLevel = 6;
@@ -63,11 +63,13 @@ unsigned long currentMillis;
 const long interval = 1000;
 int total, resTotal;
 
-unsigned long temperatureCheck = 0;
-const long temperatureCheckInterval = 950;
+unsigned long timeCheck = 0;
+const long timeCheckInterval = 1000;
 
 unsigned long buzzerMillis;
 unsigned long startBuzzerMillis;
+
+unsigned long startDelayMillis;
 
 void setup() 
 {
@@ -92,30 +94,18 @@ void setup()
 void loop() 
 {
   // Acionamento das funções globais
-  initialResetFunc();
   validation();
-  if (Buffer[0] == 0x5A && Buffer[4] == 0x16) {
-    showPower();
-    turnOn();
-    screenReset();
-    // Bip de aviso:
-    mySerial.write(buzzerHalfSecond, 8);
-    delay(1000);
-    mySerial.write(buzzerHalfSecond, 8);
-    delay(1000);
-    mySerial.write(buzzerOneSecond, 8);
-  }
-  else {
-    if (millis() - temperatureCheck >= temperatureCheckInterval)
-    {
-      temperatureCheck = millis();
-      showTemperature();
-    }
+  startMenu();
+  if (millis() - timeCheck >= timeCheckInterval)
+  {
+    initialResetFunc();
+    timeCheck = millis();
+    showTemperature();
     verifyTemperatureStart();
     verifyLevel();
-    readPowerFunc();
-    readTime();
   }
+  readTime();
+  readPowerFunc();
 }
 
 void readCurrent()
@@ -323,6 +313,23 @@ void validation()
   delay(50);
 }
 
+void startMenu()
+{
+  if (Buffer[0] == 0x5A && Buffer[4] == 0x20) {
+    Serial.println(pgmTime);
+    Serial.println(pwmValue);
+    showPower();
+    turnOn();
+    screenReset();
+    // Bip de aviso:
+    mySerial.write(buzzerHalfSecond, 8);
+    delay(1000);
+    mySerial.write(buzzerHalfSecond, 8);
+    delay(1000);
+    mySerial.write(buzzerOneSecond, 8);
+  }
+}
+
 void turnOn()
 {
   // Ação de ligar
@@ -342,7 +349,7 @@ void turnOn()
     delay(50);
 
     validation();
-    if (Buffer[0] == 0x5A && Buffer[4] == 0x18)
+    if (Buffer[0] == 0x5A && Buffer[4] == 0x25)
     {
       total = -1;
       turnOff();
