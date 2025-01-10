@@ -104,8 +104,6 @@ void loop()
     verifyTemperatureStart();
     verifyLevel();
   }
-  readTime();
-  readPowerFunc();
 }
 
 void readCurrent()
@@ -316,8 +314,20 @@ void validation()
 void startMenu()
 {
   if (Buffer[0] == 0x5A && Buffer[4] == 0x20) {
-    Serial.println(pgmTime);
-    Serial.println(pwmValue);
+    Serial.println("-----------------");
+    do {
+      readPowerFunc();
+      Serial.print("Força: ");
+      Serial.println(pwmValue);
+    } while (pwmValue < 0 || pwmValue > 128);
+    
+    delay(2000);
+    
+    do {
+      readTime();
+      Serial.print("Tempo: ");
+      Serial.println(pgmTime);
+    } while (pgmTime < 1 || pgmTime > 120);
     showPower();
     turnOn();
     screenReset();
@@ -333,6 +343,9 @@ void startMenu()
 void turnOn()
 {
   // Ação de ligar
+  changePic[8] = 0x00; 
+  changePic[9] = 0x000A;
+  mySerial.write(changePic, 10);
   Serial.println("Ligou!");
   digitalWrite(LED_BUILTIN, HIGH);
 
@@ -371,7 +384,7 @@ void turnOn()
         if (total < 0)
         {
           changePic[8] = 0x00; 
-          changePic[9] = 0x05;
+          changePic[9] = 0x04;
           mySerial.write(changePic, 10);
         }
       }
