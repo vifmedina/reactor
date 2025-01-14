@@ -49,7 +49,7 @@ unsigned char  readPgmtime[8] = {0x5A, 0xA5, 0x04, 0x83, 0x10, 0x00, 0x01, 0x00}
 unsigned char    readPower[8] = {0x5A, 0xA5, 0x04, 0x83, 0x12, 0x00, 0x01, 0x00};
 unsigned char readPoweroff[8] = {0x5A, 0xA5, 0x04, 0x83, 0x18, 0x00, 0x01, 0x00};
 
-unsigned char buzzerOneSecond[8] = {0x5A, 0xA5, 0x05, 0x82, 0x00, 0xA0, 0x00, 0x7D};
+unsigned char  buzzerOneSecond[8] = {0x5A, 0xA5, 0x05, 0x82, 0x00, 0xA0, 0x00, 0x7D};
 unsigned char buzzerHalfSecond[8] = {0x5A, 0xA5, 0x05, 0x82, 0x00, 0xA0, 0x00, 0x3E};
 
 unsigned char Buffer[9];
@@ -74,7 +74,7 @@ unsigned long startDelayMillis;
 void setup() 
 {
   // Baud
-  Serial.begin(9600);
+  Serial.begin(115200);
   mySerial.begin(9600);
 
   // Sets
@@ -210,22 +210,45 @@ void verifyTemperatureStart()
 
 void readPowerFunc()
 {
-  // Faz a leitura do endereço 0x12 e salva o valor que foi selecionado na tela touchscreen
+  // Envia o comando para ler o valor de potência da tela
+  readPower[7] = 0x00;
   mySerial.write(readPower, sizeof(readPower));
-  delay(100);
 
-  if (mySerial.available() >= 8)
-  {
+  unsigned long startMillis = millis();
+  bool timeout = false;
+
+  // Aguarda até 100ms para a resposta da tela (timeout)
+  while (millis() - startMillis < 100 && mySerial.available() < 8) {
+    delay(10); 
+  }
+
+  if (mySerial.available() >= 8) {
     unsigned char receivedDataPower[8];
     int bytesreadPower = mySerial.readBytes(receivedDataPower, sizeof(receivedDataPower));
 
-    if (bytesreadPower >= 8) 
-    {
+    if (bytesreadPower == 8) {
+      // Verifica se os dados lidos são válidos
       powerReadValue = (receivedDataPower[6] << 8) | receivedDataPower[7];
+
+      // Se o valor de potência estiver dentro do intervalo esperado (por exemplo, entre 0 e 100)
+      if (powerReadValue >= 0 && powerReadValue <= 100) {
+        pwmValue = (powerReadValue / 100.0) * 128; 
+        Serial.print("Potência lida: ");
+        Serial.println(powerReadValue);
+      } else {
+        Serial.println("Erro: valor de potência fora do intervalo esperado");
+      }
+    } else {
+      Serial.println("Erro: não foi possível ler 8 bytes de dados de potência");
     }
+  } else {
+    timeout = true;
   }
 
-  pwmValue = (powerReadValue / 100) * 128;
+  if (timeout) {
+    Serial.println("Erro: Timeout na leitura da potência");
+  }
+
   delay(50);
 }
 
@@ -254,22 +277,44 @@ void setPower(float freq)
 
 void readTime()
 {
-  // Faz a leitura do endereço 0x10 e salva o valor que foi selecionado na tela touchscreen
+  // Envia o comando para ler o valor de tempo na tela
+  readPgmtime[7] = 0x00;
   mySerial.write(readPgmtime, sizeof(readPgmtime));
-  delay(100);
 
-  if (mySerial.available() >= 8)
-  {
+  unsigned long startMillis = millis();
+  bool timeout = false;
+
+  // Aguarda até 100ms para a resposta da tela (timeout)
+  while (millis() - startMillis < 100 && mySerial.available() < 8) {
+    delay(10);
+  }
+
+  if (mySerial.available() >= 8) {
     unsigned char receivedDataPgmtime[8];
     int bytesreadPgmtime = mySerial.readBytes(receivedDataPgmtime, sizeof(receivedDataPgmtime));
 
-    if (bytesreadPgmtime >= 8) 
-    {
+    if (bytesreadPgmtime == 8) {
+      // Verifica se os dados lidos são válidos (por exemplo, checando um valor esperado)
       pgmtimeReadValue = (receivedDataPgmtime[6] << 8) | receivedDataPgmtime[7];
+      if (pgmtimeReadValue >= 1 && pgmtimeReadValue <= 120) {
+        // Se o valor de tempo estiver dentro do intervalo esperado, usa ele
+        pgmTime = pgmtimeReadValue;
+        Serial.print("Tempo lido: ");
+        Serial.println(pgmTime);
+      } else {
+        Serial.println("Erro: valor de tempo fora do intervalo esperado");
+      }
+    } else {
+      Serial.println("Erro: não foi possível ler 8 bytes de dados de tempo");
     }
+  } else {
+    timeout = true;
   }
 
-  pgmTime = pgmtimeReadValue;
+  if (timeout) {
+    Serial.println("Erro: Timeout na leitura do tempo");
+  }
+
   delay(50);
 }
 
@@ -311,23 +356,22 @@ void validation()
   delay(50);
 }
 
-void startMenu()
+void startMenu() 
 {
   if (Buffer[0] == 0x5A && Buffer[4] == 0x20) {
     Serial.println("-----------------");
-    do {
-      readPowerFunc();
-      Serial.print("Força: ");
-      Serial.println(pwmValue);
-    } while (pwmValue < 0 || pwmValue > 128);
-    
-    delay(2000);
-    
     do {
       readTime();
       Serial.print("Tempo: ");
       Serial.println(pgmTime);
     } while (pgmTime < 1 || pgmTime > 120);
+    
+    do {
+      readPowerFunc();
+      Serial.print("Força: ");
+      Serial.println(pwmValue);
+    } while (pwmValue < 0 || pwmValue > 128);
+
     showPower();
     turnOn();
     screenReset();
@@ -337,6 +381,8 @@ void startMenu()
     mySerial.write(buzzerHalfSecond, 8);
     delay(1000);
     mySerial.write(buzzerOneSecond, 8);
+    delay(2000);
+    asm volatile ("  jmp 0");
   }
 }
 
