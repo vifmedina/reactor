@@ -381,7 +381,7 @@ void startMenu()
     mySerial.write(buzzerHalfSecond, 8);
     delay(1000);
     mySerial.write(buzzerOneSecond, 8);
-    delay(2000);
+    delay(1000);
     asm volatile ("  jmp 0");
   }
 }
@@ -462,6 +462,9 @@ void screenReset()
 
   writePgmtime[7] = pgmtimeReadValue;
   mySerial.write(writePgmtime, 8);
+
+  writePower[6] = highByte(pwmUserValue);
+  writePower[7] = lowByte(pwmUserValue);
 }
 
 void resetPopup()
@@ -479,8 +482,9 @@ void initialResetFunc()
   {
     resetPopup();
     showTemperature();
-    pwmValue = 26;
-    showPower();
+    changePic[8] = 0x00; 
+    changePic[9] = 0x02;
+    mySerial.write(changePic, 10);
     initialReset = 10;
   }
 
