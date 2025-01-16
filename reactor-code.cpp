@@ -465,6 +465,7 @@ void screenReset()
 
   writePower[6] = highByte(pwmUserValue);
   writePower[7] = lowByte(pwmUserValue);
+  mySerial.write(writePower, 8);
 }
 
 void resetPopup()
