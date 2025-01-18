@@ -382,7 +382,7 @@ void startMenu()
     delay(1000);
     mySerial.write(buzzerOneSecond, 8);
     delay(1000);
-    asm volatile ("  jmp 0");
+    //asm volatile ("  jmp 0");
   }
 }
 
@@ -486,6 +486,13 @@ void initialResetFunc()
     changePic[8] = 0x00; 
     changePic[9] = 0x02;
     mySerial.write(changePic, 10);
+
+    writePgmtime[7] = 1;
+    mySerial.write(writePgmtime, 8);
+
+    writePower[7] = 10;
+    mySerial.write(writePower, 8);
+
     initialReset = 10;
   }
 
